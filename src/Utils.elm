@@ -1,9 +1,72 @@
 module Utils exposing (..)
 
+import Array
+import Dict
 import List
 import String
 import Svg
 import Svg.Attributes as SvgAttr
+
+
+modByLoop : Int -> number -> number -> ( Int, number )
+modByLoop numberOfSubtractions numberBeingSubtractedFrom amountToSubtract =
+    if numberBeingSubtractedFrom > amountToSubtract then
+        modByLoop (numberOfSubtractions + 1) (numberBeingSubtractedFrom - amountToSubtract) amountToSubtract
+
+    else if numberBeingSubtractedFrom < 0 then
+        modByLoop (numberOfSubtractions - 1) (numberBeingSubtractedFrom + amountToSubtract) amountToSubtract
+
+    else
+        ( numberOfSubtractions, numberBeingSubtractedFrom )
+
+
+modBy : number -> number -> ( Int, number )
+modBy numberBeingSubtractedFrom amountToSubtract =
+    modByLoop 0 numberBeingSubtractedFrom amountToSubtract
+
+
+type OrderedDict key value
+    = OrderedDict { order : List key, items : Dict.Dict key value }
+
+
+dictFromList : List ( comparable, value ) -> OrderedDict comparable value
+dictFromList list =
+    OrderedDict { items = Dict.fromList list, order = list |> List.map (\elem -> Tuple.first elem) }
+
+
+get : comparable -> OrderedDict comparable value -> Maybe value
+get key (OrderedDict dict) =
+    Dict.get key dict.items
+
+
+foldl : (comparable -> value -> b -> b) -> b -> OrderedDict comparable value -> b
+foldl func acc (OrderedDict { order, items }) =
+    List.foldl
+        (\item ->
+            \a ->
+                case Dict.get item items of
+                    Just x ->
+                        func item x a
+
+                    Nothing ->
+                        a
+        )
+        acc
+        order
+
+
+updateArray : Int -> (a -> ( a, out )) -> out -> Array.Array a -> ( Array.Array a, out )
+updateArray index func defaultOut arr =
+    case Array.get index arr of
+        Nothing ->
+            ( arr, defaultOut )
+
+        Just value ->
+            let
+                ( newValue, out ) =
+                    func value
+            in
+            ( Array.set index newValue arr, out )
 
 
 mapInPairsLoop : List b -> a -> (a -> a -> b) -> List a -> List b
@@ -60,9 +123,16 @@ type Color
     = Color String
 
 
+noColor : Color
+noColor =
+    Color "none"
+
+
 arrowHead : Float -> Float -> Color -> Float -> Svg.Svg msg
 arrowHead x y color bearingInRadians =
-    svgPath color
+    svgPath
+        noColor
+        color
         [ findXy x y (bearingInRadians - degrees 45) 10
         , ( x, y )
         , findXy x y (bearingInRadians + degrees 45) 10
@@ -97,10 +167,10 @@ svgArrow ( Color c, style ) (Line ( x1, y1 ) ( x2, y2 )) =
            )
 
 
-svgPath : Color -> List ( Float, Float ) -> Svg.Svg msg
-svgPath (Color c) points =
+svgPath : Color -> Color -> List ( Float, Float ) -> Svg.Svg msg
+svgPath (Color fillColor) (Color strokeColor) points =
     Svg.path
-        [ SvgAttr.style ("fill:none;stroke:" ++ c ++ ";stroke-width:1;")
+        [ SvgAttr.style ("fill:" ++ fillColor ++ ";stroke:" ++ strokeColor ++ ";stroke-width:1;")
         , SvgAttr.d
             ("M"
                 ++ String.join " "

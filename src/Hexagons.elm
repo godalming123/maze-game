@@ -30,25 +30,25 @@ type LineFromTesalatedHexagons
 lineFromTesalatedHexagonsToInt : LineFromTesalatedHexagons -> Float -> Int
 lineFromTesalatedHexagonsToInt (LineFromTesalatedHexagons { x, y, position }) h =
     (x * numberOfHexagonsVertically h + y)
-        * 6
+        * 2
         + (case position of
             TopLeft ->
                 0
 
             TopMiddle ->
-                1
+                0
 
             TopRight ->
-                2
+                0
 
             BottomLeft ->
-                3
+                1
 
             BottomMiddle ->
-                4
+                1
 
             BottomRight ->
-                5
+                1
           )
 
 
@@ -99,31 +99,62 @@ numberOfHexagonsVertically height =
     floor (height / 100)
 
 
-hexagonTop : Float -> Float -> Float -> Float -> List (Utils.Line Float)
+type HexagonTop
+    = HexagonTop
+        { line0 : Utils.Line Float
+        , line1 : Utils.Line Float
+        , line2 : Utils.Line Float
+        , hexagon : List ( Float, Float )
+        , center : ( Float, Float )
+        }
+
+
+hexagonTop : Float -> Float -> Float -> Float -> HexagonTop
 hexagonTop x y w h =
-    [ ( x, y + 0.5 * h )
-    , ( x + 0.25 * w, y )
-    , ( x + 0.75 * w, y )
-    , ( x + w, y + 0.5 * h )
-    ]
-        |> Utils.mapInPairs Utils.Line
+    let
+        p0 =
+            ( x, y + 0.5 * h )
+
+        p1 =
+            ( x + 0.25 * w, y )
+
+        p2 =
+            ( x + 0.75 * w, y )
+
+        p3 =
+            ( x + w, y + 0.5 * h )
+
+        p4 =
+            ( x + 0.75 * w, y + h )
+
+        p5 =
+            ( x + 0.25 * w, y + h )
+    in
+    HexagonTop
+        { line0 = Utils.Line p0 p1
+        , line1 = Utils.Line p1 p2
+        , line2 = Utils.Line p2 p3
+        , hexagon = [ p0, p1, p2, p3, p4, p5, p0 ]
+        , center = ( x + 0.5 * w, y + 0.5 * h )
+        }
 
 
-getHexagonTops : Int -> Int -> List (Utils.Line Float)
+getHexagonTops : Int -> Int -> List HexagonTop
 getHexagonTops x y =
-    hexagonTop
+    [ hexagonTop
         (Basics.toFloat (x * 150))
         (Basics.toFloat (y * 100))
         100
         100
-        ++ hexagonTop
-            (Basics.toFloat (x * 150) + 75)
-            (Basics.toFloat (y * 100) + 50)
-            100
-            100
+    , hexagonTop
+        (Basics.toFloat (x * 150) + 75)
+        (Basics.toFloat (y * 100) + 50)
+        100
+        100
+    ]
 
 
-tesalatedHexagonLines : Float -> Float -> List (Utils.Line Float)
+tesalatedHexagonLines : Float -> Float -> List HexagonTop
 tesalatedHexagonLines w h =
     List.range 0 (numberOfHexagonsHorizontally w - 1)
         |> List.concatMap
@@ -224,3 +255,36 @@ moveLineFromTesalatedHexagons line movementDirection width height =
 
     else
         LineFromTesalatedHexagons out
+
+
+type LeftOrRight
+    = Left
+    | Right
+
+
+getHexagonFromXY : Float -> Float -> ( LeftOrRight, Int, Int )
+getHexagonFromXY x y =
+    -- If the x and y input is on the edge of a hexagon, then this function
+    -- should round the output x or y down
+    let
+        ( yMacro, yMicro ) =
+            Utils.modBy y 100
+
+        absoluteDeltaBetweenYMicroAnd50 =
+            abs (yMicro - 50)
+
+        ( xMacro, xMicro ) =
+            Utils.modBy (x - absoluteDeltaBetweenYMicroAnd50 / 2) 150
+    in
+    if xMicro <= 100 - absoluteDeltaBetweenYMicroAnd50 then
+        ( Left, xMacro, yMacro )
+
+    else
+        ( Right
+        , xMacro
+        , if yMicro > 50 then
+            yMacro
+
+          else
+            yMacro - 1
+        )
